@@ -81,7 +81,7 @@ def scrape_jobs():
                     if not job_url.startswith("http"):
                         job_url = url + job_url  # Ensure absolute URL
                     job_list.append({
-                        "Job Title": link.text.strip(),
+                        "Job Title": link.text.strip() if link.text else "N/A",
                         "Organization": "Unknown",
                         "Summary": "N/A",
                         "Match %": "Unknown",
@@ -110,7 +110,12 @@ def send_email(job_list):
         print("No job postings found. Skipping email.")
         return
     
-    email_content = "<html><body><h2>Job Alerts</h2>" + pd.DataFrame(job_list).to_html(index=False) + "</body></html>"
+    try:
+        email_content = "<html><body><h2>Job Alerts</h2>" + pd.DataFrame(job_list).to_html(index=False) + "</body></html>"
+    except Exception as e:
+        print(f"Error generating email content: {e}")
+        return
+
     headers = {
         "Authorization": f"Bearer {SENDGRID_API_KEY}",
         "Content-Type": "application/json"
