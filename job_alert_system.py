@@ -65,30 +65,33 @@ job_sources = [
     "https://greentrade.tech/careers/",
     "https://www.kuehne-stiftung.org/foundation/job-opportunities",
 ]
+
 # Scraper function to search job listings within entire sites
 def scrape_jobs():
     job_list = []
     for url in job_sources:
         try:
             response = requests.get(url, timeout=10)
-            if response.status_code == 200:
-                soup = BeautifulSoup(response.text, 'html.parser')
-                links = soup.find_all('a', href=True)
-                for link in links:
-                    job_url = link['href']
-                    if "job" in job_url.lower() or "careers" in job_url.lower():
-                        if not job_url.startswith("http"):
-                            job_url = url + job_url  # Ensure absolute URL
-                        job_list.append({
-                            "Job Title": link.text.strip(),
-                            "Organization": "Unknown",
-                            "Summary": "N/A",
-                            "Match %": "Unknown",
-                            "Date Posted": "Unknown",
-                            "Deadline": "Unknown",
-                            "Job Type & Location": "Unknown",
-                            "Link": job_url
-                        })
+            response.raise_for_status()
+            soup = BeautifulSoup(response.text, 'html.parser')
+            links = soup.find_all('a', href=True)
+            for link in links:
+                job_url = link['href']
+                if "job" in job_url.lower() or "careers" in job_url.lower():
+                    if not job_url.startswith("http"):
+                        job_url = url + job_url  # Ensure absolute URL
+                    job_list.append({
+                        "Job Title": link.text.strip(),
+                        "Organization": "Unknown",
+                        "Summary": "N/A",
+                        "Match %": "Unknown",
+                        "Date Posted": "Unknown",
+                        "Deadline": "Unknown",
+                        "Job Type & Location": "Unknown",
+                        "Link": job_url
+                    })
+        except requests.exceptions.RequestException as e:
+            print(f"Network error scraping {url}: {e}")
         except Exception as e:
             print(f"Error scraping {url}: {e}")
     return job_list
@@ -103,6 +106,10 @@ def send_email(job_list):
     receiver_email = "dmlandholm@gmail.com"
     subject = "[Daily Job Alert] Climate & Carbon Roles"
     
+    if not job_list:
+        print("No job postings found. Skipping email.")
+        return
+    
     email_content = "<html><body><h2>Job Alerts</h2>" + pd.DataFrame(job_list).to_html(index=False) + "</body></html>"
     headers = {
         "Authorization": f"Bearer {SENDGRID_API_KEY}",
@@ -115,16 +122,18 @@ def send_email(job_list):
         "content": [{"type": "text/html", "value": email_content}]
     }
     
-    response = requests.post("https://api.sendgrid.com/v3/mail/send", headers=headers, json=data)
-    if response.status_code == 202:
+    try:
+        response = requests.post("https://api.sendgrid.com/v3/mail/send", headers=headers, json=data)
+        response.raise_for_status()
         print("Email sent successfully!")
-    else:
-        print(f"Failed to send email: {response.text}")
+    except requests.exceptions.RequestException as e:
+        print(f"Failed to send email: {e}")
 
 # Main execution
 if __name__ == "__main__":
     job_data = scrape_jobs()
     send_email(job_data)
+
 
 
 
