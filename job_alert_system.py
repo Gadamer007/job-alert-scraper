@@ -2,19 +2,7 @@ import requests
 import json
 import os
 import pandas as pd
-import gspread
-from oauth2client.service_account import ServiceAccountCredentials
-
-# Google Sheets setup
-GOOGLE_SHEET_URL = "https://docs.google.com/spreadsheets/d/1kJnxN74WzXVqQYsVtDc4_ui_4_kzBAnWQYfYUdU_c48/edit"
-SCOPES = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-
-# Authenticate Google Sheets
-def authenticate_google_sheets():
-    creds_json = json.loads(os.getenv("GOOGLE_CREDENTIALS"))
-    creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_json, SCOPES)
-    client = gspread.authorize(creds)
-    return client.open_by_url(GOOGLE_SHEET_URL).sheet1
+from bs4 import BeautifulSoup
 
 # List of job sources
 job_sources = [
@@ -77,19 +65,6 @@ job_sources = [
     "https://greentrade.tech/careers/",
     "https://www.kuehne-stiftung.org/foundation/job-opportunities",
 ]
-
-
-# Keywords to match
-keywords = [
-    "carbon markets", "GHG emissions", "carbon accounting", "GHG methodologies", 
-    "climate finance", "sustainable finance", "green finance", "impact investing", 
-    "carbon credit markets", "emissions trading", "carbon pricing mechanisms", 
-    "GHG data analysis", "climate risk modeling", "ESG data analytics", 
-    "financial risk & climate risk assessment", "climate-aligned investment", 
-    "green bonds", "transition finance", "net-zero investment strategies", 
-    "sustainability reporting", "TCFD", "SFDR"
-]
-
 # Scraper function to search job listings within entire sites
 def scrape_jobs():
     job_list = []
@@ -106,9 +81,9 @@ def scrape_jobs():
                             job_url = url + job_url  # Ensure absolute URL
                         job_list.append({
                             "Job Title": link.text.strip(),
-                            "Organization": "Unknown",  # To be extracted from source
-                            "Summary": "N/A",  # More advanced parsing needed
-                            "Match %": "Unknown",  # Need better analysis
+                            "Organization": "Unknown",
+                            "Summary": "N/A",
+                            "Match %": "Unknown",
                             "Date Posted": "Unknown",
                             "Deadline": "Unknown",
                             "Job Type & Location": "Unknown",
@@ -118,17 +93,12 @@ def scrape_jobs():
             print(f"Error scraping {url}: {e}")
     return job_list
 
-# Save to Google Sheets
-def save_to_google_sheets(job_list):
-    sheet = authenticate_google_sheets()
-    sheet.clear()
-    sheet.append_row(["Job Title", "Organization", "Summary", "Match %", "Date Posted", "Deadline", "Job Type & Location", "Link"])
-    for job in job_list:
-        sheet.append_row(list(job.values()))
-
 # Send email via SendGrid
 def send_email(job_list):
     SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY")
+    if not SENDGRID_API_KEY:
+        print("SENDGRID_API_KEY is missing in environment variables.")
+        return
     sender_email = "your-email@example.com"
     receiver_email = "dmlandholm@gmail.com"
     subject = "[Daily Job Alert] Climate & Carbon Roles"
@@ -154,7 +124,7 @@ def send_email(job_list):
 # Main execution
 if __name__ == "__main__":
     job_data = scrape_jobs()
-    save_to_google_sheets(job_data)
     send_email(job_data)
+
 
 
