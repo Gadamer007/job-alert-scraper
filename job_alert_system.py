@@ -1,14 +1,9 @@
-import smtplib
 import requests
-from bs4 import BeautifulSoup
+import json
+import os
 import pandas as pd
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
-import time
-import os
-import json
 
 # Google Sheets setup
 GOOGLE_SHEET_URL = "https://docs.google.com/spreadsheets/d/1kJnxN74WzXVqQYsVtDc4_ui_4_kzBAnWQYfYUdU_c48/edit"
@@ -119,7 +114,6 @@ def scrape_jobs():
                             "Job Type & Location": "Unknown",
                             "Link": job_url
                         })
-                        time.sleep(1)  # Avoid overwhelming the server
         except Exception as e:
             print(f"Error scraping {url}: {e}")
     return job_list
@@ -132,24 +126,30 @@ def save_to_google_sheets(job_list):
     for job in job_list:
         sheet.append_row(list(job.values()))
 
-# Email sender function
+# Send email via SendGrid
 def send_email(job_list):
-    sender_email = "your-email@gmail.com"
+    SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY")
+    sender_email = "your-email@example.com"
     receiver_email = "dmlandholm@gmail.com"
-    password = os.getenv("EMAIL_PASSWORD")
+    subject = "[Daily Job Alert] Climate & Carbon Roles"
     
-    msg = MIMEMultipart()
-    msg['From'] = sender_email
-    msg['To'] = receiver_email
-    msg['Subject'] = "[Daily Job Alert] Climate & Carbon Roles"
+    email_content = "<html><body><h2>Job Alerts</h2>" + pd.DataFrame(job_list).to_html(index=False) + "</body></html>"
+    headers = {
+        "Authorization": f"Bearer {SENDGRID_API_KEY}",
+        "Content-Type": "application/json"
+    }
+    data = {
+        "personalizations": [{"to": [{"email": receiver_email}]}],
+        "from": {"email": sender_email},
+        "subject": subject,
+        "content": [{"type": "text/html", "value": email_content}]
+    }
     
-    html_table = pd.DataFrame(job_list).to_html(index=False)
-    msg.attach(MIMEText(html_table, 'html'))
-    
-    with smtplib.SMTP('smtp.gmail.com', 587) as server:
-        server.starttls()
-        server.login(sender_email, password)
-        server.sendmail(sender_email, receiver_email, msg.as_string())
+    response = requests.post("https://api.sendgrid.com/v3/mail/send", headers=headers, json=data)
+    if response.status_code == 202:
+        print("Email sent successfully!")
+    else:
+        print(f"Failed to send email: {response.text}")
 
 # Main execution
 if __name__ == "__main__":
